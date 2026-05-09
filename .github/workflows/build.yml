@@ -6,6 +6,7 @@ on:
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -19,42 +20,46 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.4'
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: gradle assembleDebug
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
-      - name: Upload debug APK artifact
+      - name: Rename APK
+        run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/TICKR.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TICKR-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: TICKR-apk
+          path: app/build/outputs/apk/debug/TICKR.apk
 
-      - name: Create Release APK on tag
-        if: startsWith(github.ref, 'refs/tags/')
-        run: ./gradlew assembleRelease || ./gradlew assembleDebug
-
-      - name: Publish Release
+      - name: Publish to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/release/app-release-unsigned.apk
-          fail_on_unmatched_files: false
+          files: app/build/outputs/apk/debug/TICKR.apk
           body: |
             ## TICKR ${{ github.ref_name }}
 
-            Secure ephemeral messaging. No logs. No trace.
+            Secure ephemeral messaging. Anonymous IDs. Burn timers. No logs. No trace.
 
-            **Install:**
-            1. Download `app-debug.apk`
-            2. On your Android device: Settings → Security → Allow unknown sources
-            3. Open the downloaded APK to install
+            ### Install
+            1. Download **TICKR.apk** below
+            2. On Android: **Settings → Security → Install unknown apps** → allow your browser/file manager
+            3. Open the APK to install
+            4. Requires Android 8.0+
 
-            Requires Android 8.0+
+            ### Features
+            - Auto-assigned anonymous ID (no name required)
+            - Message burn timers: 5s / 10s / 15s / 30s / 60s / on-close
+            - End-to-end screenshot block (OS-level FLAG_SECURE)
+            - File sharing up to 25MB
+            - No server logs
